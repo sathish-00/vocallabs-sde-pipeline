@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDE Lead Engine Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { 
+            background-color: #f8f9fa; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        }
+        .card { 
+            border: none; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+            border-radius: 10px; 
+        }
+        /* Flowchart Custom Styles */
+        .flow-node {
+            background-color: #ffffff;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            padding: 14px 10px;
+            transition: all 0.3s ease;
+        }
+        .node-active {
+            border-color: #0d6efd;
+            background-color: #e7f1ff;
+            color: #0b5ed7;
+            font-weight: 600;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(13, 110, 253, 0.15);
+        }
+        .node-success {
+            border-color: #198754;
+            background-color: #d1e7dd;
+            color: #146c43;
+            font-weight: 600;
+        }
+        .flow-arrow {
+            color: #6c757d;
+            font-size: 1.25rem;
+            transition: color 0.3s ease;
+        }
+        .arrow-success {
+            color: #198754;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <div>
+            <h1 class="fw-bold text-dark">SDE Modular Automation Engine</h1>
+            <p class="text-muted mb-0">Full-Stack Lead Generation, Enrichment & Outreach Pipeline</p>
+        </div>
+        <button id="runBtn" class="btn btn-primary btn-lg px-4 fw-bold shadow-sm" onclick="startPipeline()">
+            Execute Master Pipeline
+        </button>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card p-4">
+                <h3 class="fw-bold mb-4 text-secondary fs-5">Live Pipeline Tracker Flowchart</h3>
+                
+                <div class="row g-2 align-items-center text-center">
+                    <div class="col">
+                        <div id="flow1" class="flow-node">
+                            <div class="small uppercase tracking-wider text-muted mb-1 font-monospace fw-bold">Stage 1</div>
+                            <div class="small">Apollo Target Query</div>
+                        </div>
+                    </div>
+                    <div class="col-auto d-none d-lg-block">
+                        <i id="arrow1" class="fa-solid fa-chevron-right flow-arrow"></i>
+                    </div>
+
+                    <div class="col">
+                        <div id="flow2" class="flow-node">
+                            <div class="small uppercase tracking-wider text-muted mb-1 font-monospace fw-bold">Stage 2</div>
+                            <div class="small">Prospeo Contact Hunt</div>
+                        </div>
+                    </div>
+                    <div class="col-auto d-none d-lg-block">
+                        <i id="arrow2" class="fa-solid fa-chevron-right flow-arrow"></i>
+                    </div>
+
+                    <div class="col">
+                        <div id="flow3" class="flow-node">
+                            <div class="small uppercase tracking-wider text-muted mb-1 font-monospace fw-bold">Stage 3</div>
+                            <div class="small">EazyReach Validation</div>
+                        </div>
+                    </div>
+                    <div class="col-auto d-none d-lg-block">
+                        <i id="arrow3" class="fa-solid fa-chevron-right flow-arrow"></i>
+                    </div>
+
+                    <div class="col">
+                        <div id="flow4" class="flow-node">
+                            <div class="small uppercase tracking-wider text-muted mb-1 font-monospace fw-bold">Stage 4</div>
+                            <div class="small">Brevo SMTP Dispatch</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="statusMessage" class="mt-4 text-center fw-bold text-muted">
+                    System Ready for Command.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3 class="fw-bold text-secondary fs-5 mb-0">Captured Transmission Logs</h3>
+                    
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="timeFilter" class="small text-muted fw-semibold text-nowrap mb-0">History:</label>
+                        <select id="timeFilter" class="form-select form-select-sm" style="width: 170px;" onchange="applyTimeFilter()">
+                            <option value="all" {% if current_filter == 'all' %}selected{% endif %}>All Completed</option>
+                            <option value="24h" {% if current_filter == '24h' %}selected{% endif %}>Last 24 Hours</option>
+                            <option value="1w" {% if current_filter == '1w' %}selected{% endif %}>Last 1 Week</option>
+                            <option value="1m" {% if current_filter == '1m' %}selected{% endif %}>Last 1 Month</option>
+                            <option value="1y" {% if current_filter == '1y' %}selected{% endif %}>Last 1 Year</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Contact Target</th>
+                                <th>Role / Entity</th>
+                                <th>Execution Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leadsTable">
+                            {% if historical_leads %}
+                                {% for lead in historical_leads %}
+                                <tr>
+                                    <td>
+                                        <span class="fw-bold text-dark">{{ lead.name }}</span><br>
+                                        <small class="text-muted">{{ lead.email }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ lead.title }}</span><br>
+                                        <small class="text-muted">{{ lead.company }}</small>
+                                    </td>
+                                    <td><small class="text-muted">{{ lead.timestamp }}</small></td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">No transmission logs found for this filter period.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function applyTimeFilter() {
+    const range = document.getElementById("timeFilter").value;
+    window.location.href = "/?range=" + range;
+}
+
+function startPipeline() {
+    const runBtn = document.getElementById("runBtn");
+    const statusMsg = document.getElementById("statusMessage");
+    
+    for (let i = 1; i <= 4; i++) {
+        document.getElementById(`flow${i}`).className = "flow-node";
+        if (i < 4) {
+            document.getElementById(`arrow${i}`).className = "fa-solid fa-chevron-right flow-arrow";
+        }
+    }
+
+    runBtn.disabled = true;
+    runBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing Run...';
+    
+    statusMsg.className = "mt-4 text-center fw-bold text-muted";
+    statusMsg.innerText = "Running data engines...";
+    
+    document.getElementById("flow1").className = "flow-node node-active";
+    
+    setTimeout(() => {
+        document.getElementById("flow1").className = "flow-node node-success";
+        document.getElementById("arrow1").className = "fa-solid fa-chevron-right flow-arrow arrow-success";
+        document.getElementById("flow2").className = "flow-node node-active";
+    }, 1200);
+
+    setTimeout(() => {
+        document.getElementById("flow2").className = "flow-node node-success";
+        document.getElementById("arrow2").className = "fa-solid fa-chevron-right flow-arrow arrow-success";
+        document.getElementById("flow3").className = "flow-node node-active";
+    }, 2800);
+
+    fetch('/api/run', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === "success") {
+                document.getElementById("flow3").className = "flow-node node-success";
+                document.getElementById("arrow3").className = "fa-solid fa-chevron-right flow-arrow arrow-success";
+                document.getElementById("flow4").className = "flow-node node-success";
+                
+                statusMsg.className = "mt-4 text-center fw-bold text-success";
+                statusMsg.innerText = "Pipeline Execution Flawless! Email Sent & Log Cached.";
+                
+                if (data.lead) {
+                    const tableBody = document.getElementById("leadsTable");
+                    
+                    // Remove "No records found" row if it exists before prepending data row
+                    if (tableBody.rows.length === 1 && tableBody.rows[0].cells.length === 1) {
+                        tableBody.innerHTML = '';
+                    }
+
+                    const dynamicRow = `
+                        <tr>
+                            <td>
+                                <span class="fw-bold text-dark">${data.lead.name}</span><br>
+                                <small class="text-muted">${data.lead.email}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">${data.lead.title}</span><br>
+                                <small class="text-muted">${data.lead.company}</small>
+                            </td>
+                            <td><small class="text-muted">${data.lead.timestamp}</small></td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML = dynamicRow + tableBody.innerHTML;
+                }
+            } else {
+                statusMsg.className = "mt-4 text-center fw-bold text-danger";
+                statusMsg.innerText = "Run Failure: " + data.message;
+                resetNodesOnError();
+            }
+        })
+        .catch(error => {
+            console.error("Pipeline runtime error context:", error);
+            statusMsg.className = "mt-4 text-center fw-bold text-danger";
+            statusMsg.innerText = "Runtime Connection Refused.";
+            resetNodesOnError();
+        })
+        .finally(() => {
+            runBtn.disabled = false;
+            runBtn.innerHTML = "Execute Master Pipeline";
+        });
+}
+
+function resetNodesOnError() {
+    for (let i = 1; i <= 4; i++) {
+        const element = document.getElementById(`flow${i}`);
+        if (element.classList.contains("node-active")) {
+            element.className = "flow-node border-danger text-danger";
+        }
+    }
+}
+</script>
+</body>
+</html>

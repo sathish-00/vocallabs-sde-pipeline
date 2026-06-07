@@ -1,0 +1,16 @@
+# Secrets and Credentials
+.env
+
+# Python compilation and cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Operating system junk files
+.DS_Store
+Thumbs.db
+
+# Local IDE configuration folders
+.vscode/
+.idea/
