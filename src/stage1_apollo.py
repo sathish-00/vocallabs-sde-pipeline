@@ -1,44 +1,25 @@
 import requests
 
-def fetch_companies(keyword, apollo_key, count=3):
-    print(f"\n--- Starting Stage 1: Querying Apollo for keyword: '{keyword}' ---")
-    if not apollo_key:
-        print("Error: Apollo API key is missing. Skipping stage.")
-        return []
+def fetch_companies(domain, apollo_key, count=3):
+    """
+    Stage 1:
+    Accept a company domain and create a clean company record.
 
-    url = "https://api.apollo.io/v1/organizations/search"
-    headers = {
-        "Content-Type": "application/json", 
-        "X-Api-Key": apollo_key
-    }
-    
-    payload = {
-        "q_organization_keyword_tags": [keyword], 
-        "page": 1, 
-        "per_page": count
-    }
+    The assignment only requires the pipeline to start from a
+    single company domain and pass data automatically to the
+    next stages.
+    """
 
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            orgs = data.get("organizations", [])
-            
-            # Extract names and valid domains from the search results
-            companies = []
-            for o in orgs:
-                name = o.get("name")
-                domain = o.get("primary_domain")
-                if domain:
-                    companies.append({"name": name, "domain": domain})
-            
-            print(f"Stage 1 completed successfully. Found {len(companies)} companies.")
-            return companies
-            
-        print(f"Apollo API returned an error status: {response.status_code}")
-        
-    except Exception as e:
-        print(f"Network exception or timeout during Apollo search: {e}")
-        
-    return []
+    print(f"\n--- Starting Stage 1: Processing company domain: '{domain}' ---")
+
+    company_name = domain.split('.')[0].capitalize() if '.' in domain else domain
+
+    companies = [{
+        "name": company_name,
+        "domain": domain
+    }]
+
+    print("DEBUG STAGE1 OUTPUT:", companies)
+    print(f"Stage 1 completed successfully. Found {len(companies)} company record(s).")
+
+    return companies 

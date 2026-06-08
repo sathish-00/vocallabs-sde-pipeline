@@ -1,83 +1,211 @@
 import requests
+import time
 
 def hunt_leads(companies, prospeo_key):
+
     print("\n--- Starting Stage 2: Finding contacts via Prospeo API ---")
+
     if not prospeo_key:
-        print("Error: Prospeo API key is missing. Cannot proceed.")
+        print("Error: Prospeo API key is missing.")
         return []
 
-    url = "https://api.prospeo.io/v1/domain-search"
+    search_url = "https://api.prospeo.io/search-person"
+    enrich_url = "https://api.prospeo.io/enrich-person"
+
     headers = {
-        "Content-Type": "application/json", 
+        "Content-Type": "application/json",
         "X-KEY": prospeo_key
     }
+
     leads = []
 
-    for comp in companies:
-        domain = comp.get('domain')
-        comp_name = comp.get('name', 'Unknown Company')
-        
-        print(f"Checking domain: {domain} ...")
-        
-        try:
-            payload = {"domain": domain}
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                email_list = data.get("response", {}).get("email_list", [])
-                
-                # Check for decision makers first
-                found_match = False
-                for contact in email_list:
-                    title = contact.get("title", "").lower()
-                    
-                    # Targeting executive roles
-                    target_roles = ["ceo", "founder", "director", "vp", "chief", "manager"]
-                    if any(role in title for role in target_roles):
-                        first = contact.get('first_name', '')
-                        last = contact.get('last_name', '')
-                        
-                        lead = {
-                            "name": f"{first} {last}".strip(),
-                            "email": contact.get("email"),
-                            "title": contact.get("title") or "Executive",
-                            "company": comp_name
-                        }
-                        leads.append(lead)
-                        found_match = True
-                        print(f"Found match: {lead['name']} - {lead['title']}")
-                
-                # If no execs found, grab the first fallback contact
-                if not found_match and email_list:
-                    fallback = email_list[0]
-                    f_name = fallback.get('first_name', '')
-                    l_name = fallback.get('last_name', '')
-                    
-                    lead = {
-                        "name": f"{f_name} {l_name}".strip(),
-                        "email": fallback.get("email"),
-                        "title": fallback.get("title") or "Staff Member",
-                        "company": comp_name
-                    }
-                    leads.append(lead)
-                    found_match = True
-                    print(f"Using general contact fallback: {lead['name']} ({lead['title']})")
-                    
-        except Exception as e:
-            print(f"Network error or timeout while scanning {domain}: {e}")
-            
-    # Inject test data if trial limits hit and no leads found
-    if not leads:
-        print("No leads retrieved from API. Injecting test profile for sandboxed pipeline validation...")
-        test_lead = {
-            "name": "Sathish Test Lead",
-            "email": "sathishkodari25@gmail.com",  # Directly triggers verified inbox routing
-            "title": "Chief Technology Officer",
-            "company": "VocalLabs Sandbox"
-        }
-        leads.append(test_lead)
-        print(f"Added sandbox test lead target: {test_lead['name']}")
+    decision_roles = [
+    "founder",
+    "co-founder",
+    "ceo",
+    "cto",
+    "cio",
+    "cfo",
+    "chief",
+    "director",
+    "associate director",
+    "senior director",
+    "vp",
+    "vice president",
+    "head",
+    "engineering manager",
+    "product manager",
+    "senior manager",
+    "sales manager"
+    ]
 
-    print(f"\nStage 2 completed. Total leads collected: {len(leads)}")
+    for comp in companies:
+
+        domain = comp.get("domain")
+        company_name = comp.get("name", "Unknown Company")
+
+        print(f"\nSearching contacts for: {domain}")
+
+        try:
+
+            search_payload = {
+                "page": 1,
+                "filters": {
+                    "company": {
+                        "websites": {
+                            "include": [domain]
+                        }
+                    }
+                }
+            }
+
+            search_response = requests.post(
+                search_url,
+                json=search_payload,
+                headers=headers,
+                timeout=20
+            )
+
+            print("SEARCH STATUS:", search_response.status_code)
+
+            if search_response.status_code != 200:
+                print(search_response.text)
+                continue
+
+            search_data = search_response.json()
+
+            results = search_data.get("results", [])
+
+            # Limit contacts to avoid burning credits
+            results = results[:10]
+
+            print("RESULT COUNT:", len(results))
+
+            for result in results:
+
+                person = result.get("person", {})
+
+                person_id = person.get("person_id")
+
+                if not person_id:
+                    continue
+
+                # Avoid Prospeo 429 rate limits
+                time.sleep(1)
+
+                enrich_payload = {
+                    "only_verified_email": True,
+                    "data": {
+                        "person_id": person_id
+                    }
+                }
+
+                enrich_response = requests.post(
+                    enrich_url,
+                    json=enrich_payload,
+                    headers=headers,
+                    timeout=20
+                )
+
+                print(
+                    f"ENRICH STATUS ({person.get('full_name')}):",
+                    enrich_response.status_code
+                )
+
+                if enrich_response.status_code != 200:
+                    continue
+
+                enrich_data = enrich_response.json()
+
+                enriched_person = enrich_data.get("person", {})
+
+                email_data = enriched_person.get("email", {})
+
+                revealed = email_data.get("revealed", False)
+                email = email_data.get("email")
+
+                if not revealed:
+                    continue
+
+                if not email:
+                    continue
+
+                title = enriched_person.get(
+                    "current_job_title",
+                    person.get("current_job_title", "Contact")
+                )
+
+                # Only decision makers
+                if not any(
+                    role in title.lower()
+                    for role in decision_roles
+                ):
+                    print(
+                        f"Skipping non-decision maker: "
+                        f"{person.get('full_name')} ({title})"
+                    )
+                    continue
+
+                lead = {
+                    "name": enriched_person.get(
+                        "full_name",
+                        person.get("full_name")
+                    ),
+                    "email": email,
+                    "title": title,
+                    "company": company_name,
+                    "linkedin": enriched_person.get(
+                        "linkedin_url",
+                        person.get("linkedin_url", "")
+                    )
+                }
+
+                leads.append(lead)
+
+                print(
+                    f"DECISION MAKER FOUND -> "
+                    f"{lead['name']} | "
+                    f"{lead['title']} | "
+                    f"{lead['email']}"
+                )
+
+        except Exception as e:
+            print("Prospeo Error:", e)
+
+    # Remove duplicate emails
+    unique_leads = []
+    seen = set()
+
+    for lead in leads:
+
+        if lead["email"] not in seen:
+            seen.add(lead["email"])
+            unique_leads.append(lead)
+
+    leads = unique_leads
+
+    print(f"\nDECISION MAKERS FOUND: {len(leads)}")
+
+    if not leads:
+
+        print(
+            "\nNo decision makers found. "
+            "Using fallback contact."
+        )
+
+        company = companies[0]
+
+        leads.append({
+            "name": f"{company['name']} Contact",
+            "email": f"contact@{company['domain']}",
+            "title": "Business Contact",
+            "company": company["name"],
+            "linkedin": ""
+        })
+
+    print(
+        f"\nStage 2 completed. "
+        f"Total leads collected: {len(leads)}"
+    )
+
     return leads
